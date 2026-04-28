@@ -115,6 +115,9 @@ void EXTI1_IRQHandler(void)
 int main()
 {
 
+        SysTick_initialize();
+        host_serial_init(9600);
+
         printf("starting program\n");
 
         // toggle switch
