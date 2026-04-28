@@ -67,8 +67,8 @@ void config_reed_interrupt(void)
         SYSCFG->EXTICR[0] &= ~(0xF << 4);
         SYSCFG->EXTICR[0] |= (0x1 << 4); // port B
 
-        EXTI->RTSR1 |= (1 << 1);  // rising for door opening
-        EXTI->FTSR1 &= ~(1 << 1); // disable falling
+        //EXTI->RTSR1 |= (1 << 1);  // rising for door opening
+        //EXTI->FTSR1 &= ~(1 << 1); // disable falling
 
         EXTI->IMR1 |= (1 << 1);
 
@@ -93,7 +93,10 @@ void EXTI9_5_IRQHandler(void)
 // handler for reed interupt
 void EXTI1_IRQHandler(void)
 {
-        if (EXTI->PR1 & (1 << 1)) {
+    if(gpio_read(D6)) {
+        printf("working\r\n");
+    }
+
                 EXTI->PR1 |= (1 << 1);
 
                 // HIGH = door open
@@ -109,12 +112,16 @@ void EXTI1_IRQHandler(void)
                         // interupt handler
                         take_pic = 1;
                 }
-        }
+        
 }
 
 int main()
 {
-    printf("start program\n");
+
+        SysTick_initialize();
+        host_serial_init(9600);
+
+        printf("starting program\n");
 
         // toggle switch
         gpio_config_mode(D5, INPUT);
@@ -129,5 +136,7 @@ int main()
         while (1) {
                 printf("loop\n");
                 delay_ms(1000);
+
+                //EXTI1_IRQHandler();
         }
 }
