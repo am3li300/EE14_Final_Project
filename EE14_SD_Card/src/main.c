@@ -114,6 +114,9 @@ void EXTI1_IRQHandler(void)
 
 int main()
 {
+
+        printf("starting program\n");
+
         // toggle switch
         gpio_config_mode(D5, INPUT);
         gpio_config_pullup(D5, PULL_UP);
@@ -121,6 +124,8 @@ int main()
         // reed switch
         gpio_config_mode(D6, INPUT);
         gpio_config_pullup(D6, PULL_UP);
+
+        printf("finished config\n");
 
         while (1) {
                 printf("loop\n");
