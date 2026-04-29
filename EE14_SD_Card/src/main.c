@@ -1,6 +1,10 @@
 #include "ee14lib.h"
+#include "ff.h"
+#include "sd_spi.h"
 #include <stdint.h>
 #include <stdio.h>
+#include <stm32l432xx.h>
+#include <string.h>
 
 // global vars
 volatile uint8_t armed = 0;
@@ -114,13 +118,21 @@ void EXTI1_IRQHandler(void)
     EXTI->PR1 |= (1 << 1);
 }
 
+// STM32                PiCowBell
+// =================================
+// A4   (SPI1_SCK)   →  SCK
+// D2   (SPI1_MOSI)  →  MOSI
+// A5   (SPI1_MISO)  ←  MISO
+// A3   (GPIO)       →  CS      (interchangeable)
+// 3.3V              →  3V
+// GND               →  GND
+
 int main()
 {
-
         SysTick_initialize();
         host_serial_init(9600);
 
-        printf("starting program\n");
+        printf("Starting Program\n");
 
         // toggle switch
         gpio_config_mode(D5, INPUT);
@@ -133,11 +145,82 @@ int main()
         config_toggle_interrupt();
         config_reed_interrupt();
 
-        printf("finish config\n");
+        printf("finish interrupt config\n");
+
+        sd_spi_init();
+        int init = sd_init();
+        printf("sd_init: %d\n", init);
+
+        if (init != 0) {
+                while (1) {
+                        delay_ms(1000);
+                        printf("SD init failed\n");
+                }
+        }
+
+        FATFS fs;
+        FIL file;
+        FRESULT res;
+        UINT written;
+
+        // -------------------- TEST BLOCK -----------------------------
+        uint8_t block[512];
+
+        int rr = sd_read_block(0, block);
+        printf("read block 0: %d\n", rr);
+
+        uint32_t part_lba = block[454] | (block[455] << 8) |
+                            (block[456] << 16) | (block[457] << 24);
+
+        uint8_t part_type = block[450];
+
+        printf("partition type: %02X\n", part_type);
+        printf("partition start LBA: %lu\n", part_lba);
+
+        sd_read_block(part_lba, block);
+
+        printf("boot sector first bytes: %02X %02X %02X %02X\n", block[0],
+               block[1], block[2], block[3]);
+        printf("boot sector signature: %02X %02X\n", block[510], block[511]);
+        printf("OEM: %.8s\n", &block[3]);
+
+        uint16_t bytes_per_sector = block[11] | (block[12] << 8);
+        printf("bytes/sector: %u\n", bytes_per_sector);
+        // -------------------- TEST BLOCK END --------------------------
+
+        // mount sd
+        res = f_mount(&fs, "", 1);
+        printf("f_mount: %d\n", res);
+
+        if (res != FR_OK) {
+                while (1) {
+                        delay_ms(1000);
+                        printf("Mounting failed\n");
+                }
+        }
+
+        // Open file
+        res = f_open(&file, "test.txt", FA_WRITE | FA_CREATE_ALWAYS);
+        printf("f_open: %d\n", res);
+
+        if (res != FR_OK) {
+                while (1) {
+                        delay_ms(1000);
+                        printf("Opening file failed\n");
+                }
+        }
+
+        // Write to file
+        const char *msg = "im so hungry\n";
+        res = f_write(&file, msg, strlen(msg), &written);
+        printf("f_write: %d, written: %u\n", res, written);
+
+        // Close file
+        f_close(&file);
+        printf("f_close: %d\n", res);
 
         while (1) {
-                printf("loop\n");
-                delay_ms(1000);
+                printf("success ? \n");
 
         }
 }
