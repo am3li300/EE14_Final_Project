@@ -67,8 +67,8 @@ void config_reed_interrupt(void)
         SYSCFG->EXTICR[0] &= ~(0xF << 4);
         SYSCFG->EXTICR[0] |= (0x1 << 4); // port B
 
-        //EXTI->RTSR1 |= (1 << 1);  // rising for door opening
-        //EXTI->FTSR1 &= ~(1 << 1); // disable falling
+        EXTI->RTSR1 |= (1 << 1);  // rising for door opening
+        EXTI->FTSR1 &= ~(1 << 1); // disable falling
 
         EXTI->IMR1 |= (1 << 1);
 
@@ -93,26 +93,25 @@ void EXTI9_5_IRQHandler(void)
 // handler for reed interupt
 void EXTI1_IRQHandler(void)
 {
+
+    // HIGH = door open
+    // LOW  = door closed
+    door_open = gpio_read(D6);
+
     if(gpio_read(D6)) {
-        printf("working\r\n");
+        printf("door opened\r\n");
+
+        if (door_open && armed) {
+            // pic here somehow idk
+            // prolly smarter to set a flag so not doing I2C in the
+            // interupt handler
+            take_pic = 1;
+        }
     }
 
-                EXTI->PR1 |= (1 << 1);
-
-                // HIGH = door open
-                // LOW  = door closed
-                door_open = gpio_read(D6);
-
-                // test
-                printf("DOOR ISR triggered\r\n");
-
-                if (door_open && armed) {
-                        // pic here somehow idk
-                        // prolly smarter to set a flag so not doing I2C in the
-                        // interupt handler
-                        take_pic = 1;
-                }
-        
+    // test
+    printf("door ISR triggered\r\n");  
+    EXTI->PR1 |= (1 << 1);
 }
 
 int main()
@@ -131,12 +130,14 @@ int main()
         gpio_config_mode(D6, INPUT);
         gpio_config_pullup(D6, PULL_UP);
 
+        config_toggle_interrupt();
+        config_reed_interrupt();
+
         printf("finish config\n");
 
         while (1) {
                 printf("loop\n");
                 delay_ms(1000);
 
-                //EXTI1_IRQHandler();
         }
 }
