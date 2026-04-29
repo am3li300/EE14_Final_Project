@@ -1,3 +1,8 @@
+// sd_spi.c
+//
+// implements functions for initializing SPI & SD card
+// including startup commands & also reading/writing to SD
+
 #include "sd_spi.h"
 #include "ee14lib.h"
 #include <stdint.h>
@@ -8,9 +13,8 @@
 #define SD_CMD55 55  /* APP_CMD */
 #define SD_ACMD41 41 /* SEND_OP_COND (ACMD) */
 #define SD_CMD58 58  /* READ_OCR */
-
-#define SD_CMD17 17
-#define SD_CMD24 24
+#define SD_CMD17 17  /* READ */
+#define SD_CMD24 24  /* WRITE*/
 
 #define SD_R1_IDLE 0x01
 #define SD_R1_READY 0x00
@@ -24,6 +28,12 @@
 
 static int sd_is_sdhc = 0;
 
+// sends a command. SD commands are bitpacked into 6 bytes:
+// bits 0-7: CRC
+// bits 8-39: argument
+// bits 40-45: command ID
+// bits 46 & 47: 10
+// https://www.ece.tufts.edu/es/4/labs/lab7_sdcard.pdf
 static uint8_t sd_send_cmd(uint8_t cmd, uint32_t arg, uint8_t crc)
 {
         uint8_t response;
@@ -53,7 +63,6 @@ static uint8_t sd_send_cmd(uint8_t cmd, uint32_t arg, uint8_t crc)
 }
 
 // note should call sd_spi_init before sd init
-
 // https://electronics.stackexchange.com/questions/77417/what-is-the-correct-command-sequence-for-microsd-card-initialization-in-spi
 
 int sd_init(void)
@@ -238,6 +247,7 @@ void sd_spi_init(void)
         SPI1->CR1 |= SPI_CR1_SPE;
 }
 
+// handles read and write cuz full duplex
 uint8_t sd_spi_txrx(uint8_t data)
 {
         // write to SD
@@ -253,6 +263,7 @@ uint8_t sd_spi_txrx(uint8_t data)
         return *((volatile uint8_t *)&SPI1->DR);
 }
 
+// writes 0xFF to SD, waiting until SD responds with token
 static int sd_wait_token(uint8_t token)
 {
         for (int i = 0; i < 100000; i++) {
@@ -265,6 +276,7 @@ static int sd_wait_token(uint8_t token)
         return -1;
 }
 
+// reads a block (512 bytes) from SD
 int sd_read_block(uint32_t sector, uint8_t *buffer)
 {
         uint8_t r;
@@ -301,6 +313,7 @@ int sd_read_block(uint32_t sector, uint8_t *buffer)
         return 0;
 }
 
+// writes a block (512 bytes) to SD
 int sd_write_block(uint32_t sector, const uint8_t *buffer)
 {
         uint8_t r;
@@ -321,7 +334,7 @@ int sd_write_block(uint32_t sector, const uint8_t *buffer)
                 sd_spi_txrx(buffer[i]);
         }
 
-        // Dummy CRC (???)
+        // Dummy CRC
         sd_spi_txrx(0xFF);
         sd_spi_txrx(0xFF);
 
@@ -333,7 +346,7 @@ int sd_write_block(uint32_t sector, const uint8_t *buffer)
                 return -2;
         }
 
-        // Wait while card is busy (returns 0x00 while busy)
+        // Wait while card is busy
         while (sd_spi_txrx(0xFF) == 0x00) {
         }
 
