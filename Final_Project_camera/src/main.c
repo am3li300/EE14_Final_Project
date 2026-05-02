@@ -9,13 +9,10 @@
 #define I2C1_SCL D1
 #define I2C1_SDA D0
 
-#define CAM_SCK D13
-#define CAM_MISO D12
-#define CAM_MOSI D11
-#define CAM_CS A3
-
 #define DEVICE_ADDR_W 0x60
 #define DEVICE_ADDR_R 0x61
+
+#define BUFSIZE 512
 
 int _write(int file, char *data, int len) {
     serial_write(USART2, data, len);
@@ -41,29 +38,10 @@ bool ov5640_read_reg(uint16_t reg, uint8_t *value)
    return i2c_read(I2C3, DEVICE_ADDR, value, 1);
 }
 
-bool arducam_init() 
+bool ov2460_init() 
 {
-    i2c_init(I2C1, I2C1_SCL, I2C1_SDA);
-
-    
-
-    gpio_config_mode(HREF, INPUT);
-    gpio_config_pullup(HREF, PULL_DOWN);
-
-    gpio_config_mode(VSYNC, INPUT);
-    gpio_config_pullup(VSYNC, PULL_DOWN);
-
-    gpio_config_mode(PCLK, INPUT);
-    gpio_config_pullup(PCLK, PULL_DOWN);
-
-    gpio_config_mode(HREF, INPUT);
-    gpio_config_pullup(HREF, PULL_DOWN);
-
-    gpio_config_mode(SHUTTER, OUTPUT);
-
-    for (int i = 0; i < (sizeof(DATA_PINS) / sizeof(EE14Lib_Pin)); i++) {
-        gpio_config_mode(DATA_PINS[i], INPUT);
-        gpio_config_pullup(DATA_PINS[i], PULL_DOWN);
+    if (i2c_init(I2C1, I2C1_SCL, I2C1_SDA) != EE14Lib_Err_OK) {
+        return false;
     }
 
     return true;
@@ -73,36 +51,46 @@ int main()
 {
     //SysTick_initialize();
     host_serial_init(9600);
-    if (!ov5640_init()) {
+    if (!ov2460_init()) {
         printf("Error initializing camera\n");
     }
 
-    for (int i = 0; i < 1000000000; i++) {}
+    for (int i = 0; i < 1000000; i++) {}
 
-    uint8_t data;
-    ov5640_read_reg(0x3008, &data);
-    printf("register: %#04X\n", data);
+    // i2c configuration
 
-
-    while(1) {
-        // for (int i = 0; i < 1000000000; i++) {}
-
-        // gpio_write(SHUTTER, 1);
-        // gpio_write(SHUTTER, 0);
-
-        // printf("HREF: %d, VSYNC: %d, PCLK: %d\nD1: %d, D2: %d, D3: %d, D4: %d, D5: %d, D6: %d, D7: %d, D8: %d\n", 
-        //        gpio_read(HREF), gpio_read(VSYNC), gpio_read(PCLK), 
-        //        gpio_read(DATA_PINS[0]),
-        //        gpio_read(DATA_PINS[1]),
-        //        gpio_read(DATA_PINS[2]),
-        //        gpio_read(DATA_PINS[3]),
-        //        gpio_read(DATA_PINS[4]),
-        //        gpio_read(DATA_PINS[5]),
-        //        gpio_read(DATA_PINS[6]),
-        //        gpio_read(DATA_PINS[7])
-        //     );
+    if (cam_spi_ok()) {
+        printf("Arducam SPI bus active\n");
+    }
+    else {
+        printf("Arducam SPI bus failed\n");
+        return 0;
     }
 
+    cam_clear_fifo_flag();
+    cam_start_capture();
+    cam_wait_capture();
+    printf("Done capturing!\n");
 
-    
+    uint32_t length = cam_get_fifo_length();
+    int i = 0;
+    uint8_t buf[BUF_SIZE] = {0};
+    uint8_t curr = 0, last = 0;
+
+    while (length--) {
+        last = curr;
+        curr = cam_read_fifo();
+        printf("%#04X\n", curr);
+
+        if (i < BUFSIZE) {
+            buf[i++] = curr;
+        }
+        else {
+            // fwrite buf
+            i = 0;
+            buf[i++] = curr;
+        }
+    }
+
+    printf("Done reading fifo\n");
 }
