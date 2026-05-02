@@ -48,6 +48,10 @@ a pin was specified that isn't valid for a given peripheral. */
 #define HI_SPD  0b10
 #define V_HI_SPD 0b11
 
+// Alternate Function Mappings
+#define SPI1_AF 0b0101
+#define SPI3_AF 0b0110
+
 EE14Lib_Err gpio_config_alternate_function(EE14Lib_Pin pin, unsigned int function);
 EE14Lib_Err gpio_config_mode(EE14Lib_Pin pin, unsigned int mode);
 EE14Lib_Err gpio_config_pullup(EE14Lib_Pin pin, unsigned int mode);

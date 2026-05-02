@@ -6,16 +6,23 @@
 #define I2C3_SCL A6
 #define I2C3_SDA D12
 
-#define I2C1_SCL D1
-#define I2C1_SDA D0
+#define DEVICE_ADDR 0x3C
 
-#define CAM_SCK D13
-#define CAM_MISO D12
-#define CAM_MOSI D11
-#define CAM_CS A3
+#define COMPRESSION_ENABLE_ADDR 0x3821
+#define COMPRESSION_ENABLE_POS 5
 
-#define DEVICE_ADDR_W 0x60
-#define DEVICE_ADDR_R 0x61
+#define JPG_MODE_SELECT_ADDR 0x4713
+#define JPEG_MODE_3 ((uint8_t)0b011)
+
+#define FORMAT_CONTROL00_ADDR 0x4300
+#define RGB565_3 ((uint8_t)0x61)
+
+#define HREF D1
+#define VSYNC D0
+#define PCLK D3
+#define SHUTTER D4
+
+static EE14Lib_Pin DATA_PINS[] = { D7, D8, D9, D10, D11, D13, A1, A0 };
 
 int _write(int file, char *data, int len) {
     serial_write(USART2, data, len);
@@ -41,11 +48,22 @@ bool ov5640_read_reg(uint16_t reg, uint8_t *value)
    return i2c_read(I2C3, DEVICE_ADDR, value, 1);
 }
 
-bool arducam_init() 
+bool ov5640_init() 
 {
-    i2c_init(I2C1, I2C1_SCL, I2C1_SDA);
+    i2c_init(I2C3, I2C3_SCL, I2C3_SDA);
 
-    
+    if (!ov5640_write_reg(COMPRESSION_ENABLE_ADDR, ((uint8_t)1 << COMPRESSION_ENABLE_POS))) {
+        printf("Error configuring compression enable register\n");
+        return false;
+    }
+    if (!ov5640_write_reg(JPG_MODE_SELECT_ADDR, JPEG_MODE_3)) {
+        printf("Error configuring jpg mode select register\n");
+        return false;
+    }
+    if (!ov5640_write_reg(FORMAT_CONTROL00_ADDR, RGB565_3)) {
+        printf("Error configuring format control register\n");
+        return false;
+    }
 
     gpio_config_mode(HREF, INPUT);
     gpio_config_pullup(HREF, PULL_DOWN);
